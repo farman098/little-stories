@@ -10,8 +10,6 @@ export async function getStories() {
     content_type: "post",
   });
 
-  console.log("CONTENTFUL ITEMS:", response.items);
-
   return response.items.map((item) => ({
     id: item.sys.id,
     title: item.fields.title || "",
@@ -20,7 +18,9 @@ export async function getStories() {
     ),
     excerpt: item.fields.description || "",
     content: richTextToText(item.fields.content),
-    minutes: item.fields.minutes || "",
+    author: String(item.fields.author || "").trim(),
+    minutes: item.fields.minutes || estimateReadingTime(item.fields.content),
+    featured: Boolean(item.fields.featured),
     image: getAssetUrl(
       item.fields.featuredImage || item.fields.image
     ),
@@ -74,4 +74,10 @@ function normalizeCategory(category) {
   };
 
   return labels[normalized] || String(value || "").trim();
+}
+
+function estimateReadingTime(content) {
+  const text = richTextToText(content);
+  const wordCount = text ? text.split(/\s+/).length : 0;
+  return Math.max(1, Math.ceil(wordCount / 200));
 }

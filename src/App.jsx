@@ -8,117 +8,6 @@ const CATEGORIES = [
   "Flash fiction",
 ];
 
-const STORIES = [
-  {
-    id: 1,
-    title: "The Cartographer Who Lost Her North",
-    category: "Fiction",
-    author: "Naila Farooq",
-
-    excerpt:
-      "Every map she drew pointed somewhere true except her own street, which kept wandering off the page.",
-
-    content:
-      "Every morning, she drew maps.\n\nNot the kind that helped people get somewhere. Her maps were stranger than that.\n\nShe drew places that had disappeared, roads that no longer existed, and houses whose owners had moved away years ago.\n\nBut there was one street she could never draw correctly.\n\nHer own.\n\nShe tried again and again. Still, when she finished, the street wandered away from the page.\n\nOne evening, she decided to follow it.\n\nFor the first time, she stopped trying to find north.",
-
-    minutes: 6,
-    featured: true,
-
-    image:
-      "https://picsum.photos/seed/littlestories1/900/600",
-  },
-
-  {
-    id: 2,
-    title: "Instructions for Leaving a Small Town",
-    category: "Poetry",
-    author: "Amara Bloom",
-
-    excerpt:
-      "Pack light. The porch light will follow you for miles.",
-
-    content:
-      "Pack light.\n\nTake only what you can carry.\n\nLeave the old photographs behind.\n\nLeave the broken chair by the window.\n\nLeave the road that knows your name.\n\nThe porch light will follow you for miles.",
-
-    minutes: 2,
-
-    image:
-      "https://picsum.photos/seed/littlestories2/500/360",
-  },
-
-  {
-    id: 3,
-    title: "On Keeping Plants Alive When Nothing Else Is Working",
-    category: "Essays",
-    author: "Meher Aslam",
-
-    excerpt:
-      "The basil died in March. I want to tell you what that had to do with anything, but it didn't, and that was the point.",
-
-    content:
-      "The basil died in March.\n\nI had forgotten to water it for three days.\n\nAt first, I felt guilty. Then I realized that sometimes things simply stop growing.\n\nWe spend so much time trying to keep everything alive.\n\nPlants.\n\nFriendships.\n\nDreams.\n\nSometimes letting something end is not failure.\n\nSometimes it is simply the end of that particular season.",
-
-    minutes: 5,
-
-    image:
-      "https://picsum.photos/seed/littlestories3/500/360",
-  },
-
-  {
-    id: 4,
-    title: "Forty Words for the Last Bus Home",
-    category: "Flash fiction",
-    author: "Kamil Zafar",
-
-    excerpt:
-      "She counted streetlights instead of stops, which was its own kind of arriving.",
-
-    content:
-      "She counted streetlights instead of stops.\n\nOne.\n\nTwo.\n\nThree.\n\nOutside the window, the city slowly disappeared.\n\nBy the time she reached her stop, she had counted forty lights.\n\nShe smiled.\n\nIt was not home yet.\n\nBut it was close.",
-
-    minutes: 1,
-
-    image:
-      "https://picsum.photos/seed/littlestories4/500/360",
-  },
-
-  {
-    id: 5,
-    title: "The Neighbor Who Collected Endings",
-    category: "Fiction",
-    author: "Rehan Malik",
-
-    excerpt:
-      "He kept them in jam jars — the last lines of books he never finished, labeled by the year he gave up.",
-
-    content:
-      "He kept endings in jam jars.\n\nEvery jar contained the last line of a book he never finished.\n\nSome endings were beautiful.\n\nSome were disappointing.\n\nSome were forgotten completely.\n\nHe labeled every jar with the year he gave up.\n\nOne day, his neighbor asked him why.\n\nHe simply smiled.\n\nBecause unfinished things deserve somewhere to live.",
-
-    minutes: 7,
-
-    image:
-      "https://picsum.photos/seed/littlestories5/500/360",
-  },
-
-  {
-    id: 6,
-    title: "A Short Grief, Folded Twice",
-    category: "Poetry",
-    author: "Zohaib Rana",
-
-    excerpt:
-      "I keep it in the drawer with the batteries and the spare keys.",
-
-    content:
-      "I keep it in the drawer with the batteries and the spare keys.\n\nIt is folded twice.\n\nSmall enough to forget.\n\nHeavy enough to remember.\n\nSometimes I open the drawer just to make sure it is still there.\n\nIt always is.",
-
-    minutes: 2,
-
-    image:
-      "https://picsum.photos/seed/littlestories6/500/360",
-  },
-];
-
 const PALETTE = {
   paper: "#FAF3E7",
   ink: "#241F1C",
@@ -137,8 +26,7 @@ const CATEGORY_ACCENTS = {
   "Flash fiction": "#607A70",
 };
 
-// Small status strip shown under the navbar while Contentful loads,
-// or if the live fetch failed and we're showing the built-in stories instead.
+// Small status strip shown under the navbar while Contentful loads or fails.
 function StatusBanner({ status }) {
   if (status === "idle") return null;
 
@@ -163,7 +51,7 @@ function StatusBanner({ status }) {
       >
         { isLoading
           ? "Loading the latest stories…"
-          : "Couldn't reach Contentful just now — showing the built-in stories instead." }
+          : "Couldn't reach Contentful just now — please try again later." }
       </div>
     </div>
   );
@@ -918,7 +806,7 @@ function CategoriesPage({ stories, onStoryClick, onBack }) {
         className="category-grid"
         style={ {
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: 16,
         } }
       >
@@ -930,10 +818,10 @@ function CategoriesPage({ stories, onStoryClick, onBack }) {
               border: `1px solid ${selectedCategory === c ? CATEGORY_ACCENTS[c] : PALETTE.line}`,
               borderTop: `5px solid ${CATEGORY_ACCENTS[c]}`,
               borderRadius: 4,
-              minHeight: 154,
-              padding: "20px 22px 18px",
+              minHeight: 112,
+              padding: "14px 16px 13px",
               fontFamily: "'Fraunces', serif",
-              fontSize: 22,
+              fontSize: 18,
               color: PALETTE.ink,
               background:
                 selectedCategory === c
@@ -1185,10 +1073,9 @@ function Footer() {
 
 export default function App() {
   const [page, setPage] = useState("home");
-  const [stories, setStories] = useState(STORIES);
+  const [stories, setStories] = useState([]);
   // "loading" while the Contentful request is in flight, "error" if it
-  // failed (we keep showing the built-in stories either way), "idle"
-  // once a successful fetch has replaced them.
+  // failed, and "idle" after a successful fetch.
   const [status, setStatus] = useState("loading");
 
   const [selectedStory, setSelectedStory] = useState(null);
@@ -1196,9 +1083,7 @@ export default function App() {
   useEffect(() => {
     getStories()
       .then((contentfulStories) => {
-        if (contentfulStories.length > 0) {
-          setStories(contentfulStories);
-        }
+        setStories(contentfulStories);
         setStatus("idle");
       })
       .catch((error) => {
