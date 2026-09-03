@@ -1,0 +1,89 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+@theme {
+    --font-serif: "Fraunces", Georgia, serif;
+    --font-sans: "Inter", sans-serif;
+    --color-paper: #faf3e7;
+    --color-ink: #241f1c;
+    --color-ink-soft: #5b5148;
+    --color-indigo: #2b3a55;
+    --color-berry: #8b3a42;
+    --color-gold: #b9925a;
+    --color-line: #e3d8be;
+}
+
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    background: #faf3e7;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    overflow-x: hidden;
+    color: #241f1c;
+    font-family: "Inter", sans-serif;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.rich-text>*+* {
+    margin-top: 1.25rem;
+}
+
+.rich-text h2,
+.rich-text h3 {
+    color: #241f1c;
+    font-family: "Fraunces", serif;
+    line-height: 1.2;
+}
+
+.rich-text h2 {
+    font-size: 1.8rem;
+    margin-top: 2.5rem;
+}
+
+.rich-text h3 {
+    font-size: 1.4rem;
+    margin-top: 2rem;
+}
+
+.rich-text ul,
+.rich-text ol {
+    padding-left: 1.5rem;
+}
+
+.rich-text li+li {
+    margin-top: .5rem;
+}
+
+.rich-text blockquote {
+    border-left: 3px solid #b9925a;
+    color: #5b5148;
+    font-family: "Fraunces", serif;
+    font-size: 1.25rem;
+    font-style: italic;
+    padding-left: 1.25rem;
+}
+
+.rich-text pre {
+    overflow-x: auto;
+    background: #241f1c;
+    border-radius: .5rem;
+    color: #faf3e7;
+    padding: 1rem;
+}
+
+.rich-text img {
+    height: auto;
+    max-width: 100%;
+    border-radius: .75rem;
+}

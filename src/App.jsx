@@ -1,1151 +1,186 @@
 import { useEffect, useState } from "react";
+import { BrowserRouter, Link, NavLink, Route, Routes, useParams } from "react-router-dom";
+import { documentToReactComponents } from "@contentful/rich-text-react-renderer";
+import { BLOCKS, INLINES, MARKS } from "@contentful/rich-text-types";
 import { getStories } from "./contentful";
 
-const CATEGORIES = [
-  "Fiction",
-  "Poetry",
-  "Essays",
-  "Flash fiction",
-];
+const categories = ["Fiction", "Poetry", "Essays", "Flash fiction"];
 
-const PALETTE = {
-  paper: "#FAF3E7",
-  ink: "#241F1C",
-  inkSoft: "#5B5148",
-  indigo: "#2B3A55",
-  berry: "#8B3A42",
-  gold: "#B9925A",
-  line: "#E3D8BE",
-  card: "#FFFFFF",
+const richTextOptions = {
+    renderMark: {
+        [MARKS.BOLD]: (text) => <strong>{ text }</strong>,
+        [MARKS.ITALIC]: (text) => <em>{ text }</em>,
+        [MARKS.CODE]: (text) => <code className="rounded bg-line px-1.5 py-0.5 text-sm">{ text }</code>,
+    },
+    renderNode: {
+        [BLOCKS.HEADING_2]: (_, children) => <h2>{ children }</h2>,
+        [BLOCKS.HEADING_3]: (_, children) => <h3>{ children }</h3>,
+        [BLOCKS.UL_LIST]: (_, children) => <ul>{ children }</ul>,
+        [BLOCKS.OL_LIST]: (_, children) => <ol>{ children }</ol>,
+        [BLOCKS.QUOTE]: (_, children) => <blockquote>{ children }</blockquote>,
+        [BLOCKS.PARAGRAPH]: (_, children) => <p>{ children }</p>,
+        [BLOCKS.EMBEDDED_ASSET]: (node) => {
+            const asset = node.data.target;
+            const url = asset?.fields?.file?.url;
+            if (!url) return null;
+            const imageUrl = `${url.startsWith("//") ? "https:" : ""}${url}?w=1000&q=80&fm=webp`;
+            return <img src={ imageUrl } alt={ asset.fields.title || "Story illustration" } loading="lazy" />;
+        },
+        [BLOCKS.EMBEDDED_ENTRY]: (node) => {
+            const entry = node.data.target;
+            const title = entry?.fields?.title || entry?.fields?.name;
+            return title ? <aside className="rounded border border-line bg-white p-5"><strong>{ title }</strong></aside> : null;
+        },
+        [INLINES.EMBEDDED_ENTRY]: (node) => {
+            const title = node.data.target?.fields?.title || node.data.target?.fields?.name;
+            return title ? <span className="font-semibold text-berry">{ title }</span> : null;
+        },
+        [INLINES.HYPERLINK]: (node, children) => <a href={ node.data.uri } target="_blank" rel="noreferrer">{ children }</a>,
+    },
 };
 
-const CATEGORY_ACCENTS = {
-  Fiction: PALETTE.berry,
-  Poetry: PALETTE.indigo,
-  Essays: PALETTE.gold,
-  "Flash fiction": "#607A70",
-};
+function Layout({ children }) {
+    const [menuOpen, setMenuOpen] = useState(false);
 
-// Small status strip shown under the navbar while Contentful loads or fails.
-function StatusBanner({ status }) {
-  if (status === "idle") return null;
+    const closeMenu = () => setMenuOpen(false);
 
-  const isLoading = status === "loading";
-
-  return (
-    <div
-      style={ {
-        background: isLoading ? "#F3E9D6" : "#F6E3E1",
-        borderBottom: `1px solid ${PALETTE.line}`,
-      } }
-    >
-      <div
-        style={ {
-          maxWidth: 960,
-          margin: "0 auto",
-          padding: "10px 24px",
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: isLoading ? PALETTE.inkSoft : PALETTE.berry,
-        } }
-      >
-        { isLoading
-          ? "Loading the latest stories…"
-          : "Couldn't reach Contentful just now — please try again later." }
-      </div>
-    </div>
-  );
+    return <div className="flex min-h-screen flex-col bg-paper text-ink">
+        <header className="sticky top-0 z-10 border-b border-line bg-paper/95 backdrop-blur">
+            <nav className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between px-5 py-4" aria-label="Main navigation">
+                <Link to="/" onClick={ closeMenu } className="font-serif text-2xl font-semibold">Little Stories <span className="text-berry">.</span></Link>
+                <button type="button" onClick={ () => setMenuOpen((open) => !open) } aria-expanded={ menuOpen } aria-controls="main-menu" aria-label={ menuOpen ? "Close menu" : "Open menu" } className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded border border-line bg-white text-indigo md:hidden">
+                    <span className={ `h-0.5 w-5 bg-current transition ${menuOpen ? "translate-y-2 rotate-45" : ""}` } />
+                    <span className={ `h-0.5 w-5 bg-current transition ${menuOpen ? "opacity-0" : ""}` } />
+                    <span className={ `h-0.5 w-5 bg-current transition ${menuOpen ? "-translate-y-2 -rotate-45" : ""}` } />
+                </button>
+                <div id="main-menu" className={ `${menuOpen ? "flex" : "hidden"} w-full flex-col gap-4 border-t border-line pt-4 text-sm font-medium text-ink-soft md:flex md:w-auto md:flex-row md:gap-5 md:border-0 md:pt-0` }>
+                    <NavLink to="/blog" onClick={ closeMenu } className={ ({ isActive }) => isActive ? "text-berry" : "hover:text-berry" }>Blog</NavLink>
+                    <NavLink to="/categories" onClick={ closeMenu } className={ ({ isActive }) => isActive ? "text-berry" : "hover:text-berry" }>Categories</NavLink>
+                    <NavLink to="/about" onClick={ closeMenu } className={ ({ isActive }) => isActive ? "text-berry" : "hover:text-berry" }>About</NavLink>
+                </div>
+            </nav>
+        </header>
+        <div className="flex-1">{ children }</div>
+        <footer className="border-t border-line bg-[#f3eadb] px-5 py-10">
+            <div className="mx-auto flex max-w-5xl flex-col gap-7 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <Link to="/" className="font-serif text-2xl font-semibold">Little Stories <span className="text-berry">.</span></Link>
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-ink-soft">A small home for short things: fiction, poetry, essays and flash fiction.</p>
+                </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium text-ink-soft">
+                    <Link to="/" className="hover:text-berry">Home</Link>
+                    <Link to="/blog" className="hover:text-berry">Blog</Link>
+                    <Link to="/categories" className="hover:text-berry">Categories</Link>
+                    <Link to="/about" className="hover:text-berry">About</Link>
+                </div>
+            </div>
+            <div className="mx-auto mt-8 max-w-5xl border-t border-line pt-5 text-xs text-ink-soft">© { new Date().getFullYear() } Little Stories. All rights reserved.</div>
+        </footer>
+    </div>;
 }
 
-function Navbar({ page, setPage }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function LoadingState() { return <div className="mx-auto max-w-5xl px-5 py-24 text-ink-soft">Loading stories...</div>; }
+function ErrorState({ onRetry }) { return <div className="mx-auto max-w-5xl px-5 py-24 text-center"><h1 className="font-serif text-3xl">Stories are taking a quiet moment.</h1><p className="mt-3 text-ink-soft">We could not connect to the story archive.</p><button onClick={ onRetry } className="mt-6 rounded bg-indigo px-5 py-2 text-paper">Try again</button></div>; }
+function EmptyState({ label = "No stories found." }) { return <p className="py-12 text-ink-soft">{ label }</p>; }
 
-  const links = [
-    { key: "home", label: "Home" },
-    { key: "categories", label: "Categories" },
-    { key: "about", label: "About" },
-  ];
-
-  return (
-    <header
-      style={ {
-        borderBottom: `1px solid ${PALETTE.line}`,
-        background: PALETTE.paper,
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-      } }
-    >
-      <div
-        className="site-nav-inner"
-        style={ {
-          maxWidth: 960,
-          margin: "0 auto",
-          padding: "20px 24px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        } }
-      >
-        <button
-          onClick={ () => setPage("home") }
-          style={ {
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "baseline",
-            gap: 10,
-            padding: 0,
-          } }
-        >
-          <span
-            style={ {
-              fontFamily: "'Fraunces', serif",
-              fontSize: 25,
-              fontWeight: 600,
-              color: PALETTE.ink,
-              letterSpacing: "-0.01em",
-            } }
-          >
-            Little Stories
-          </span>
-
-          <span
-            style={ {
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: PALETTE.berry,
-              display: "inline-block",
-              marginBottom: 3,
-            } }
-          />
-        </button>
-
-        <button
-          className="menu-toggle"
-          type="button"
-          aria-label={ menuOpen ? "Close menu" : "Open menu" }
-          aria-expanded={ menuOpen }
-          onClick={ () => setMenuOpen((isOpen) => !isOpen) }
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-
-        <nav
-          className={ `site-nav-links${menuOpen ? " is-open" : ""}` }
-          style={ {
-            display: "flex",
-            gap: 28,
-          } }
-        >
-          { links.map((l) => {
-            const isActive = page === l.key;
-
-            return (
-              <button
-                key={ l.key }
-                onClick={ () => {
-                  setPage(l.key);
-                  setMenuOpen(false);
-                } }
-                style={ {
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: isActive ? PALETTE.berry : PALETTE.inkSoft,
-                  borderBottom: isActive
-                    ? `2px solid ${PALETTE.berry}`
-                    : "2px solid transparent",
-                  paddingBottom: 4,
-                } }
-              >
-                { l.label }
-              </button>
-            );
-          }) }
-        </nav>
-      </div>
-    </header>
-  );
-}
-
-function Hero() {
-  return (
-    <section
-      style={ {
-        maxWidth: 960,
-        margin: "0 auto",
-        padding: "56px 24px 8px",
-      } }
-    >
-      <p
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: PALETTE.berry,
-          fontWeight: 600,
-          letterSpacing: "0.02em",
-          marginBottom: 12,
-        } }
-      >
-        A small home for short things
-      </p>
-
-      <h1
-        style={ {
-          fontFamily: "'Fraunces', serif",
-          fontSize: 46,
-          lineHeight: 1.1,
-          fontWeight: 600,
-          color: PALETTE.ink,
-          margin: 0,
-          maxWidth: 620,
-        } }
-      >
-        Fiction, poetry and essays you can read on one coffee.
-      </h1>
-    </section>
-  );
-}
-
-function CategoryShelf({ active, onSelect }) {
-  return (
-    <div
-      style={ {
-        display: "flex",
-        gap: 8,
-        marginTop: 32,
-        marginBottom: 40,
-        flexWrap: "wrap",
-      } }
-    >
-      <button
-        onClick={ () => onSelect("All") }
-        style={ pillStyle(active === "All") }
-      >
-        All stories
-      </button>
-
-      { CATEGORIES.map((c) => (
-        <button
-          key={ c }
-          onClick={ () => onSelect(c) }
-          style={ pillStyle(active === c) }
-        >
-          { c }
-        </button>
-      )) }
-    </div>
-  );
-}
-
-function pillStyle(isActive) {
-  return {
-    background: isActive ? PALETTE.indigo : "transparent",
-    border: `1px solid ${isActive ? PALETTE.indigo : PALETTE.line}`,
-    borderRadius: 999,
-    padding: "8px 18px",
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 13.5,
-    fontWeight: 500,
-    color: isActive ? PALETTE.paper : PALETTE.inkSoft,
-    cursor: "pointer",
-  };
-}
-
-function BackButton({ onClick, label = "Back to home" }) {
-  return (
-    <button
-      onClick={ onClick }
-      style={ {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 9,
-        background: "#FFFFFFAA",
-        border: `1px solid ${PALETTE.line}`,
-        borderRadius: 999,
-        padding: "9px 16px 9px 12px",
-        color: PALETTE.indigo,
-        fontFamily: "'Inter', sans-serif",
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: "pointer",
-        boxShadow: "0 4px 12px rgba(36, 31, 28, 0.06)",
-      } }
-      onMouseEnter={ (event) => {
-        event.currentTarget.style.background = PALETTE.indigo;
-        event.currentTarget.style.color = PALETTE.paper;
-      } }
-      onMouseLeave={ (event) => {
-        event.currentTarget.style.background = "#FFFFFFAA";
-        event.currentTarget.style.color = PALETTE.indigo;
-      } }
-    >
-      <span style={ { fontSize: 17, lineHeight: 1 } }>←</span>
-      { label }
-    </button>
-  );
-}
-
-function imageFallback(story) {
-  return `https://picsum.photos/seed/${encodeURIComponent(story.id)}/900/600`;
-}
-
-function FeaturedCard({ story, onClick }) {
-  return (
-    <article
-      className="featured-card"
-      onClick={ onClick }
-      style={ {
-        position: "relative",
-        borderRadius: 14,
-        overflow: "hidden",
-        minHeight: 440,
-        display: "flex",
-        alignItems: "flex-end",
-        cursor: "pointer",
-        boxShadow: "0 18px 40px rgba(36, 31, 28, 0.16)",
-      } }
-    >
-      <img
-        src={ story.image || imageFallback(story) }
-        alt={ story.title }
-        onError={ (event) => {
-          event.currentTarget.onerror = null;
-          event.currentTarget.src = imageFallback(story);
-        } }
-        style={ {
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-        } }
-      />
-
-      <div
-        style={ {
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(0deg, rgba(28,22,18,0.88) 0%, rgba(28,22,18,0.35) 55%, rgba(28,22,18,0.05) 100%)",
-        } }
-      />
-
-      <div
-        className="featured-card-content"
-        style={ {
-          position: "relative",
-          padding: "48px 52px",
-          color: "#FFFFFF",
-          maxWidth: 640,
-        } }
-      >
-        <span
-          style={ {
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            letterSpacing: "0.02em",
-            color: PALETTE.gold,
-            fontWeight: 600,
-          } }
-        >
-          Featured · { story.category }
-        </span>
-
-        <h2
-          className="featured-card-title"
-          style={ {
-            fontFamily: "'Fraunces', serif",
-            fontSize: 42,
-            lineHeight: 1.15,
-            fontWeight: 600,
-            margin: "12px 0 12px",
-          } }
-        >
-          { story.title }
-        </h2>
-
-        <p
-          style={ {
-            fontFamily: "'Fraunces', serif",
-            fontStyle: "italic",
-            fontSize: 16,
-            lineHeight: 1.6,
-            color: "#EDE6D8",
-            margin: "0 0 14px",
-          } }
-        >
-          { story.excerpt }
-        </p>
-
-        <span style={ { fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#D8CDBB" } }>
-          { story.author ? `${story.author} · ` : "" }
-          { story.minutes } min read
-        </span>
-      </div>
-    </article>
-  );
-}
-
-function StoryGrid({ stories, onStoryClick }) {
-  if (stories.length === 0) {
-    return (
-      <p
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          color: PALETTE.inkSoft,
-          fontSize: 14,
-          padding: "24px 0",
-        } }
-      >
-        No stories in this category yet.
-      </p>
-    );
-  }
-
-  return (
-    <div
-      className="story-grid"
-      style={ {
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        gap: 24,
-      } }
-    >
-      { stories.map((s) => (
-        <article
-          key={ s.id }
-          onClick={ () => onStoryClick(s) }
-          style={ {
-            background: PALETTE.card,
-            border: `1px solid ${PALETTE.line}`,
-            borderRadius: 14,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            cursor: "pointer",
-            transition: "transform 0.15s ease",
-          } }
-        >
-          <div style={ { width: "100%", height: 160, overflow: "hidden" } }>
-            <img
-              src={ s.image || imageFallback(s) }
-              alt={ s.title }
-              onError={ (event) => {
-                event.currentTarget.onerror = null;
-                event.currentTarget.src = imageFallback(s);
-              } }
-              style={ { width: "100%", height: "100%", objectFit: "cover" } }
-            />
-          </div>
-
-          <div
-            style={ {
-              padding: "18px 20px 20px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              flexGrow: 1,
-            } }
-          >
-            <span
-              style={ {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: PALETTE.berry,
-                textTransform: "uppercase",
-                letterSpacing: "0.03em",
-              } }
-            >
-              { s.category }
-            </span>
-
-            <h3
-              style={ {
-                fontFamily: "'Fraunces', serif",
-                fontSize: 19,
-                fontWeight: 600,
-                color: PALETTE.ink,
-                margin: 0,
-                lineHeight: 1.3,
-              } }
-            >
-              { s.title }
-            </h3>
-
-            <p
-              style={ {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 14,
-                lineHeight: 1.55,
-                color: PALETTE.inkSoft,
-                margin: 0,
-                flexGrow: 1,
-              } }
-            >
-              { s.excerpt }
-            </p>
-
-            { s.author && (
-              <span
-                style={ {
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  color: PALETTE.inkSoft,
-                } }
-              >
-                By { s.author }
-              </span>
-            ) }
-
-            <span
-              style={ {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                color: PALETTE.inkSoft,
-                borderTop: `1px solid ${PALETTE.line}`,
-                paddingTop: 10,
-                marginTop: 4,
-              } }
-            >
-              { s.minutes } min read
-            </span>
-
-            <span
-              style={ {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                color: PALETTE.indigo,
-                marginTop: 5,
-              } }
-            >
-              Read story →
-            </span>
-          </div>
-        </article>
-      )) }
-    </div>
-  );
-}
-
-function StoryDetail({ story, stories, onBack, onStoryClick }) {
-  if (!story) {
-    return (
-      <main style={ { maxWidth: 820, margin: "0 auto", padding: "60px 24px" } }>
-        <h1 style={ { fontFamily: "'Fraunces', serif", color: PALETTE.ink } }>
-          Story not found
-        </h1>
-
-        <div style={ { marginTop: 20 } }>
-          <BackButton onClick={ onBack } label="Back to stories" />
+function StoryCard({ story }) {
+    return <article className="group overflow-hidden rounded-lg border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-berry hover:shadow-lg">
+        { story.image && <img src={ story.image } alt={ story.title } loading="lazy" className="h-44 w-full object-cover transition duration-500 group-hover:scale-105" /> }
+        <div className="flex min-h-56 flex-col gap-3 p-5">
+            <Link to={ `/blog/${story.slug}` } className="font-serif text-xl font-semibold leading-tight transition-colors group-hover:text-berry">{ story.title }</Link>
+            <p className="line-clamp-3 text-sm leading-6 text-ink-soft">{ story.excerpt }</p>
+            <div className="mt-auto border-t border-line pt-3 text-xs text-ink-soft">{ story.author && `By ${story.author} · ` }{ story.minutes } min read</div>
         </div>
-      </main>
-    );
-  }
-
-  return (
-    <main
-      className="story-detail"
-      style={ {
-        maxWidth: 820,
-        margin: "0 auto",
-        padding: "50px 24px 100px",
-      } }
-    >
-      <div style={ { marginBottom: 30 } }>
-        <BackButton onClick={ onBack } label="Back to stories" />
-      </div>
-
-      <div
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 12,
-          fontWeight: 600,
-          color: PALETTE.berry,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          marginBottom: 12,
-        } }
-      >
-        { story.category }
-      </div>
-
-      <h1
-        style={ {
-          fontFamily: "'Fraunces', serif",
-          fontSize: 46,
-          lineHeight: 1.12,
-          fontWeight: 600,
-          color: PALETTE.ink,
-          margin: "0 0 18px",
-        } }
-      >
-        { story.title }
-      </h1>
-
-      <div
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 13,
-          color: PALETTE.inkSoft,
-          marginBottom: 30,
-        } }
-      >
-        { story.author ? `By ${story.author} · ` : "" }
-        { story.minutes } min read
-      </div>
-
-      <img
-        className="story-detail-image"
-        src={ story.image || imageFallback(story) }
-        alt={ story.title }
-        onError={ (event) => {
-          event.currentTarget.onerror = null;
-          event.currentTarget.src = imageFallback(story);
-        } }
-        style={ {
-          width: "100%",
-          height: 430,
-          objectFit: "cover",
-          borderRadius: 16,
-          display: "block",
-          marginBottom: 36,
-        } }
-      />
-
-      <p
-        style={ {
-          fontFamily: "'Fraunces', serif",
-          fontSize: 21,
-          lineHeight: 1.6,
-          fontStyle: "italic",
-          color: PALETTE.inkSoft,
-          borderLeft: `3px solid ${PALETTE.gold}`,
-          paddingLeft: 20,
-          marginBottom: 36,
-        } }
-      >
-        { story.excerpt }
-      </p>
-
-      <div
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 16,
-          lineHeight: 1.9,
-          color: PALETTE.ink,
-          whiteSpace: "pre-line",
-        } }
-      >
-        { story.content }
-      </div>
-
-      { stories.filter(
-        (relatedStory) =>
-          relatedStory.id !== story.id &&
-          relatedStory.category === story.category
-      ).length > 0 && (
-          <section
-            style={ {
-              marginTop: 60,
-              paddingTop: 28,
-              borderTop: `1px solid ${PALETTE.line}`,
-            } }
-          >
-            <p
-              style={ {
-                margin: "0 0 8px",
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: PALETTE.berry,
-              } }
-            >
-              Continue reading
-            </p>
-            <h2
-              style={ {
-                margin: "0 0 22px",
-                fontFamily: "'Fraunces', serif",
-                fontSize: 28,
-                color: PALETTE.ink,
-              } }
-            >
-              More from { story.category }
-            </h2>
-            <StoryGrid
-              stories={ stories
-                .filter(
-                  (relatedStory) =>
-                    relatedStory.id !== story.id &&
-                    relatedStory.category === story.category
-                )
-                .slice(0, 3) }
-              onStoryClick={ onStoryClick }
-            />
-          </section>
-        ) }
-
-      <div
-        style={ {
-          marginTop: 50,
-          paddingTop: 20,
-          borderTop: `1px solid ${PALETTE.line}`,
-        } }
-      >
-        <button
-          onClick={ onBack }
-          style={ {
-            background: PALETTE.indigo,
-            color: PALETTE.paper,
-            border: "none",
-            borderRadius: 999,
-            padding: "10px 18px",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            cursor: "pointer",
-          } }
-        >
-          More stories
-        </button>
-      </div>
-    </main>
-  );
+    </article>;
 }
 
-function HomePage({ stories, onStoryClick }) {
-  const [active, setActive] = useState("All");
+function Home({ stories }) {
+    const featured = stories.find((story) => story.featured) || stories[0];
+    const latest = stories.filter((story) => story.id !== featured?.id).slice(0, 6);
+    return <main className="mx-auto max-w-5xl px-5 pb-20">
+        <section className="py-16 md:py-24"><p className="mb-3 text-sm font-semibold uppercase tracking-widest text-berry">A small home for short things</p><h1 className="max-w-2xl font-serif text-4xl font-semibold leading-tight md:text-6xl">Fiction, poetry and essays you can read on one coffee.</h1><Link to="/blog" className="mt-8 inline-block rounded bg-indigo px-5 py-3 text-sm font-semibold text-paper">Explore the collection</Link></section>
+        { featured && <section className="mb-16"><p className="mb-3 text-xs font-semibold uppercase tracking-widest text-berry">Featured story</p><Link to={ `/blog/${featured.slug}` } className="group relative block min-h-96 overflow-hidden rounded-lg bg-indigo">{ featured.image && <img src={ featured.image } alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-60 transition group-hover:scale-105" /> }<div className="relative flex min-h-96 max-w-2xl flex-col justify-end p-7 text-paper md:p-12"><span className="text-sm text-gold">{ featured.category }</span><h2 className="mt-3 font-serif text-3xl font-semibold md:text-5xl">{ featured.title }</h2><p className="mt-3 text-sm text-paper/80">{ featured.author } · { featured.minutes } min read</p></div></Link></section> }
+        <section><div className="mb-6 flex items-end justify-between"><h2 className="font-serif text-3xl font-semibold">Latest stories</h2><Link to="/blog" className="text-sm font-semibold text-berry">See all</Link></div>{ latest.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{ latest.map((story) => <StoryCard key={ story.id } story={ story } />) }</div> : <EmptyState /> }</section>
+    </main>;
+}
 
-  const featured = stories.find((s) => s.featured) || stories[0];
-
-  const rest = stories
-    .filter((s) => s.id !== featured?.id)
-    .filter((s) => active === "All" || s.category === active);
-
-  return (
-    <main
-      className="home-page"
-      style={ {
-        maxWidth: 960,
-        margin: "0 auto",
-        padding: "0 24px 80px",
-      } }
-    >
-      <Hero />
-
-      <CategoryShelf active={ active } onSelect={ setActive } />
-
-      { active === "All" && featured && (
-        <div style={ { marginBottom: 44 } }>
-          <FeaturedCard story={ featured } onClick={ () => onStoryClick(featured) } />
+function About() {
+    return <main className="mx-auto max-w-5xl px-5 py-16 pb-24 md:py-24">
+        <Link to="/" className="text-sm font-semibold text-berry hover:text-indigo">← Back to home</Link>
+        <div className="grid gap-12 md:grid-cols-[1.1fr_.9fr] md:items-end">
+            <section>
+                <p className="text-sm font-semibold uppercase tracking-widest text-berry">About the journal</p>
+                <h1 className="mt-4 max-w-2xl font-serif text-5xl font-semibold leading-tight md:text-7xl">Small stories. Long echoes.</h1>
+            </section>
+            <p className="max-w-md border-l-2 border-gold pl-5 text-lg leading-8 text-ink-soft">Little Stories is a quiet home for complete, concentrated things: fiction, poetry and essays made for the space between one thought and the next.</p>
         </div>
-      ) }
-
-      <StoryGrid stories={ rest } onStoryClick={ onStoryClick } />
-    </main>
-  );
-}
-
-function CategoriesPage({ stories, onStoryClick, onBack }) {
-  const [selectedCategory, setSelectedCategory] = useState(null);
-
-  const categoryStories = selectedCategory
-    ? stories.filter((story) => story.category === selectedCategory)
-    : [];
-
-  return (
-    <main
-      className="categories-page"
-      style={ {
-        maxWidth: 960,
-        margin: "0 auto",
-        padding: "56px 24px 80px",
-      } }
-    >
-      <BackButton onClick={ onBack } />
-
-      <h1
-        style={ {
-          fontFamily: "'Fraunces', serif",
-          fontSize: 30,
-          margin: "28px 0 24px",
-          color: PALETTE.ink,
-        } }
-      >
-        Categories
-      </h1>
-
-      <p
-        style={ {
-          maxWidth: 560,
-          margin: "0 0 34px",
-          fontFamily: "'Fraunces', serif",
-          fontStyle: "italic",
-          fontSize: 18,
-          lineHeight: 1.55,
-          color: PALETTE.inkSoft,
-        } }
-      >
-        Browse a small collection of fiction, poetry and thoughtful essays.
-      </p>
-
-      <div
-        className="category-grid"
-        style={ {
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 16,
-        } }
-      >
-        { CATEGORIES.map((c) => (
-          <button
-            key={ c }
-            onClick={ () => setSelectedCategory(c) }
-            style={ {
-              border: `1px solid ${selectedCategory === c ? CATEGORY_ACCENTS[c] : PALETTE.line}`,
-              borderTop: `5px solid ${CATEGORY_ACCENTS[c]}`,
-              borderRadius: 4,
-              minHeight: 112,
-              padding: "14px 16px 13px",
-              fontFamily: "'Fraunces', serif",
-              fontSize: 18,
-              color: PALETTE.ink,
-              background:
-                selectedCategory === c
-                  ? "#F3E9D6"
-                  : "linear-gradient(145deg, #FFFFFF 0%, #FBF5EA 100%)",
-              cursor: "pointer",
-              textAlign: "left",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              boxShadow:
-                selectedCategory === c
-                  ? `0 10px 22px ${CATEGORY_ACCENTS[c]}30`
-                  : "0 6px 16px rgba(36, 31, 28, 0.06)",
-            } }
-          >
-            <span
-              style={ {
-                color: CATEGORY_ACCENTS[c],
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-              } }
-            >
-              Collection
-            </span>
-            <span
-              style={ {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              } }
-            >
-              <span>{ c }</span>
-              <span
-                style={ {
-                  color: CATEGORY_ACCENTS[c],
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                } }
-              >
-                0{ CATEGORIES.indexOf(c) + 1 }
-              </span>
-            </span>
-            <span
-              style={ {
-                display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                color: PALETTE.inkSoft,
-              } }
-            >
-              <span>{ stories.filter((story) => story.category === c).length } stories</span>
-              <span style={ { color: CATEGORY_ACCENTS[c], fontSize: 18 } }>→</span>
-            </span>
-          </button>
-        )) }
-      </div>
-
-      { selectedCategory && (
-        <section
-          style={ {
-            marginTop: 52,
-            paddingTop: 28,
-            borderTop: `1px solid ${PALETTE.line}`,
-          } }
-        >
-          <h2
-            style={ {
-              fontFamily: "'Fraunces', serif",
-              fontSize: 26,
-              color: PALETTE.ink,
-              margin: "0 0 20px",
-            } }
-          >
-            { selectedCategory } stories
-          </h2>
-          <StoryGrid stories={ categoryStories } onStoryClick={ onStoryClick } />
-        </section>
-      ) }
-    </main>
-  );
-}
-
-function AboutPage({ onBack }) {
-  return (
-    <main
-      className="about-page"
-      style={ {
-        maxWidth: 640,
-        margin: "0 auto",
-        padding: "56px 24px 80px",
-      } }
-    >
-      <BackButton onClick={ onBack } />
-
-      <h1
-        style={ {
-          fontFamily: "'Fraunces', serif",
-          fontSize: 30,
-          margin: "28px 0 16px",
-          color: PALETTE.ink,
-        } }
-      >
-        About Little Stories
-      </h1>
-
-      <p
-        style={ {
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 15,
-          lineHeight: 1.7,
-          color: PALETTE.inkSoft,
-        } }
-      >
-        Some stories don't need three hundred pages. They need one good paragraph, said honestly.
-
-        Little Stories started as a place to keep the small things — the poems that arrive in five minutes, the essays that only take one sitting, the fiction that fits in the time it takes your coffee to cool. Fiction, poetry, essays, and flash fiction, all written to be read in one breath and thought about for much longer.
-
-        There's no scrolling fatigue here. No chapters to keep track of. Just short, complete things, written the way a good conversation ends — right when it should.
-      </p>
-    </main>
-  );
-}
-
-function Footer() {
-  const currentYear = new Date().getFullYear();
-
-  return (
-    <footer
-      style={ {
-        borderTop: `1px solid ${PALETTE.line}`,
-        background: PALETTE.paper,
-        padding: "40px 24px 30px",
-      } }
-    >
-      <div
-        style={ {
-          maxWidth: 960,
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 16,
-        } }
-      >
-        <div style={ { display: "flex", alignItems: "baseline", gap: 10 } }>
-          <span
-            style={ {
-              fontFamily: "'Fraunces', serif",
-              fontSize: 20,
-              fontWeight: 600,
-              color: PALETTE.ink,
-              letterSpacing: "-0.01em",
-            } }
-          >
-            Little Stories
-          </span>
-          <span
-            style={ {
-              width: 5,
-              height: 5,
-              borderRadius: "50%",
-              background: PALETTE.berry,
-              display: "inline-block",
-            } }
-          />
+        <div className="mt-16 grid gap-10 border-t border-line pt-10 md:grid-cols-2">
+            <div><p className="text-xs font-semibold uppercase tracking-widest text-berry">Our rule</p><h2 className="mt-3 font-serif text-3xl font-semibold">Leave before the coffee gets cold.</h2></div>
+            <p className="leading-8 text-ink-soft">There are no chapters to keep track of and no scrolling marathon waiting at the end. Just small works, honestly told, designed to be read in one breath and thought about for much longer.</p>
         </div>
-
-        <p
-          style={ {
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            color: PALETTE.inkSoft,
-            margin: 0,
-            textAlign: "center",
-          } }
-        >
-          A small home for short things — fiction, poetry, essays and flash fiction.
-        </p>
-
-        <div style={ { display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center", marginTop: 4 } }>
-          <a
-            href="#"
-            style={ {
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: PALETTE.inkSoft,
-              textDecoration: "none",
-              transition: "color 0.2s",
-            } }
-            onMouseEnter={ (e) => { e.target.style.color = PALETTE.berry; } }
-            onMouseLeave={ (e) => { e.target.style.color = PALETTE.inkSoft; } }
-          >
-            Home
-          </a>
-          <a
-            href="#"
-            style={ {
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: PALETTE.inkSoft,
-              textDecoration: "none",
-              transition: "color 0.2s",
-            } }
-            onMouseEnter={ (e) => { e.target.style.color = PALETTE.berry; } }
-            onMouseLeave={ (e) => { e.target.style.color = PALETTE.inkSoft; } }
-          >
-            Categories
-          </a>
-          <a
-            href="#"
-            style={ {
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              color: PALETTE.inkSoft,
-              textDecoration: "none",
-              transition: "color 0.2s",
-            } }
-            onMouseEnter={ (e) => { e.target.style.color = PALETTE.berry; } }
-            onMouseLeave={ (e) => { e.target.style.color = PALETTE.inkSoft; } }
-          >
-            About
-          </a>
-        </div>
-
-        <div
-          style={ {
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            color: PALETTE.inkSoft,
-            marginTop: 8,
-            opacity: 0.7,
-          } }
-        >
-          © { currentYear } Little Stories. All rights reserved.
-        </div>
-      </div>
-    </footer>
-  );
+        <Link to="/blog" className="mt-12 inline-block rounded bg-indigo px-5 py-3 text-sm font-semibold text-paper">Read the archive</Link>
+    </main>;
 }
 
-export default function App() {
-  const [page, setPage] = useState("home");
-  const [stories, setStories] = useState([]);
-  // "loading" while the Contentful request is in flight, "error" if it
-  // failed, and "idle" after a successful fetch.
-  const [status, setStatus] = useState("loading");
-
-  const [selectedStory, setSelectedStory] = useState(null);
-
-  useEffect(() => {
-    getStories()
-      .then((contentfulStories) => {
-        setStories(contentfulStories);
-        setStatus("idle");
-      })
-      .catch((error) => {
-        console.error("Unable to load Contentful stories:", error);
-        setStatus("error");
-      });
-  }, []);
-
-  const openStory = (story) => {
-    setSelectedStory(story);
-    setPage("story");
-  };
-
-  const closeStory = () => {
-    setSelectedStory(null);
-    setPage("home");
-  };
-
-  const handlePageChange = (newPage) => {
-    setSelectedStory(null);
-    setPage(newPage);
-  };
-
-  return (
-    <div
-      style={ {
-        background: PALETTE.paper,
-        minHeight: "100vh",
-        color: PALETTE.ink,
-        display: "flex",
-        flexDirection: "column",
-      } }
-    >
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap"
-      />
-
-      <Navbar page={ page } setPage={ handlePageChange } />
-
-      <StatusBanner status={ status } />
-
-      <div style={ { flex: 1 } }>
-        { page === "home" && <HomePage stories={ stories } onStoryClick={ openStory } /> }
-
-        { page === "categories" && (
-          <CategoriesPage stories={ stories } onStoryClick={ openStory } onBack={ () => handlePageChange("home") } />
-        ) }
-
-        { page === "about" && <AboutPage onBack={ () => handlePageChange("home") } /> }
-
-        { page === "story" && (
-          <StoryDetail
-            story={ selectedStory }
-            stories={ stories }
-            onBack={ closeStory }
-            onStoryClick={ openStory }
-          />
-        ) }
-      </div>
-
-      <Footer />
-    </div>
-  );
+function Blog({ stories }) {
+    const [query, setQuery] = useState("");
+    const [category, setCategory] = useState("");
+    const categories = [...new Set(stories.map((story) => story.category).filter(Boolean))];
+    const filtered = stories.filter((story) => story.title.toLowerCase().includes(query.toLowerCase()) && (!category || story.category === category));
+    return <main className="mx-auto max-w-5xl px-5 py-14 pb-20"><Link to="/" className="text-sm font-semibold text-berry hover:text-indigo">← Back to home</Link><div className="mb-10 mt-8"><p className="text-sm font-semibold uppercase tracking-widest text-berry">The archive</p><h1 className="mt-2 font-serif text-5xl font-semibold">All stories</h1></div><div className="mb-8 flex flex-col gap-3 sm:flex-row"><input value={ query } onChange={ (event) => setQuery(event.target.value) } placeholder="Search by title" aria-label="Search stories by title" className="min-h-11 flex-1 rounded border border-line bg-white px-4 outline-berry" /><select value={ category } onChange={ (event) => setCategory(event.target.value) } aria-label="Filter by category" className="min-h-11 rounded border border-line bg-white px-4"><option value="">All categories</option>{ categories.map((item) => <option key={ item }>{ item }</option>) }</select></div>{ filtered.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{ filtered.map((story) => <StoryCard key={ story.id } story={ story } />) }</div> : <EmptyState label="No stories match those filters." /> }</main>;
 }
+
+function Categories({ stories }) {
+    return <main className="mx-auto max-w-5xl px-5 py-14 pb-20">
+        <Link to="/" className="text-sm font-semibold text-berry hover:text-indigo">← Back to home</Link>
+        <p className="mt-8 text-sm font-semibold uppercase tracking-widest text-berry">Browse by mood</p>
+        <h1 className="mt-2 font-serif text-5xl font-semibold">Categories</h1>
+        <p className="mt-4 max-w-xl text-lg leading-8 text-ink-soft">Four shelves for stories that stay with you.</p>
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            { categories.map((category) => {
+                const slug = category.toLowerCase().replace(/\s+/g, "-");
+                const count = stories.filter((story) => story.category === category).length;
+                return <Link key={ category } to={ `/category/${slug}` } className="group min-h-36 rounded-lg border border-line bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-berry hover:shadow-lg">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-berry">0{ categories.indexOf(category) + 1 }</span>
+                    <h2 className="mt-8 font-serif text-2xl font-semibold group-hover:text-berry">{ category }</h2>
+                    <p className="mt-2 text-xs text-ink-soft">{ count } { count === 1 ? "story" : "stories" }</p>
+                </Link>;
+            }) }
+        </div>
+    </main>;
+}
+
+function Category({ stories }) {
+    const { slug } = useParams();
+    const categoryStories = stories.filter((story) => story.categorySlug === slug || story.category.toLowerCase() === slug.replace(/-/g, " "));
+    const title = categoryStories[0]?.category || slug.replace(/-/g, " ");
+    return <main className="mx-auto max-w-5xl px-5 py-14 pb-20"><Link to="/blog" className="text-sm font-semibold text-berry">← Back to archive</Link><h1 className="mt-8 font-serif text-5xl font-semibold">{ title }</h1>{ categoryStories.length ? <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{ categoryStories.map((story) => <StoryCard key={ story.id } story={ story } />) }</div> : <EmptyState label="This category has no published stories yet." /> }</main>;
+}
+
+function Story({ stories }) {
+    const { slug } = useParams();
+    const story = stories.find((item) => item.slug === slug || item.id === slug);
+    if (!story) return <NotFound />;
+    const related = stories.filter((item) => item.id !== story.id && item.category === story.category).slice(0, 3);
+    return <main className="mx-auto max-w-3xl px-5 py-12 pb-20"><Link to="/blog" className="text-sm font-semibold text-berry">← Back to archive</Link><article className="mt-10"><div className="text-xs font-semibold uppercase tracking-widest text-berry">{ story.category }</div><h1 className="mt-4 font-serif text-4xl font-semibold leading-tight md:text-6xl">{ story.title }</h1><div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-ink-soft"><span>{ story.author }</span><span>·</span><time dateTime={ story.publishedDate }>{ new Date(story.publishedDate).toLocaleDateString() }</time><span>·</span><span>{ story.minutes } min read</span></div>{ story.image && <img src={ story.image } alt={ story.title } loading="lazy" className="mt-10 max-h-[32rem] w-full rounded-lg object-cover" /> }<p className="mt-10 border-l-4 border-gold pl-5 font-serif text-xl italic leading-8 text-ink-soft">{ story.excerpt }</p><div className="rich-text mt-10 text-lg leading-8">{ story.content ? documentToReactComponents(story.content, richTextOptions) : <EmptyState label="This story has no content yet." /> }</div></article>{ story.authorDetails && <aside className="mt-14 flex gap-4 border-t border-line pt-6"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-line">{ story.authorDetails.avatar && <img src={ story.authorDetails.avatar } alt="" loading="lazy" className="h-full w-full object-cover" /> }</div><div><h2 className="font-semibold">{ story.authorDetails.name }</h2><p className="text-sm text-ink-soft">{ story.authorDetails.role }</p><p className="mt-1 text-sm text-ink-soft">{ story.authorDetails.bio }</p></div></aside> }{ related.length > 0 && <section className="mt-16 border-t border-line pt-8"><h2 className="mb-6 font-serif text-3xl font-semibold">More from { story.category }</h2><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{ related.map((item) => <StoryCard key={ item.id } story={ item } />) }</div></section> }</main>;
+}
+
+function NotFound() { return <main className="mx-auto max-w-5xl px-5 py-24 text-center"><p className="text-sm font-semibold uppercase tracking-widest text-berry">404</p><h1 className="mt-3 font-serif text-5xl font-semibold">Page not found</h1><p className="mt-4 text-ink-soft">The story you are looking for has wandered off the page.</p><Link to="/" className="mt-8 inline-block rounded bg-indigo px-5 py-3 text-sm font-semibold text-paper">Return home</Link></main>; }
+
+function AppContent() {
+    const [stories, setStories] = useState([]);
+    const [status, setStatus] = useState("loading");
+    const loadStories = () => {
+        setStatus("loading");
+        getStories().then((items) => { setStories(items); setStatus("ready"); }).catch((error) => { console.error(error); setStatus("error"); });
+    };
+    useEffect(() => {
+        getStories().then((items) => { setStories(items); setStatus("ready"); }).catch((error) => { console.error(error); setStatus("error"); });
+    }, []);
+    if (status === "loading") return <Layout><LoadingState /></Layout>;
+    if (status === "error") return <Layout><ErrorState onRetry={ loadStories } /></Layout>;
+    return <Layout><Routes><Route path="/" element={ <Home stories={ stories } /> } /><Route path="/blog" element={ <Blog stories={ stories } /> } /><Route path="/blog/:slug" element={ <Story stories={ stories } /> } /><Route path="/categories" element={ <Categories stories={ stories } /> } /><Route path="/category/:slug" element={ <Category stories={ stories } /> } /><Route path="/about" element={ <About /> } /><Route path="*" element={ <NotFound /> } /></Routes></Layout>;
+}
+
+export default function App() { return <BrowserRouter><AppContent /></BrowserRouter>; }
+
